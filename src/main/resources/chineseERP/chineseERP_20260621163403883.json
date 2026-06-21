@@ -1,0 +1,9 @@
+{
+  "customerID": 2,
+  "tableID": 3,
+  "employeeID": 1,
+  "orderName": "Family Celebration Package",
+  "amount": 360,
+  "totalAmount": 12500,
+  "orderStatus": "new"
+}

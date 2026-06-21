@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<order>
+  <customerID>2</customerID>
+  <tableID>2</tableID>
+  <employeeID>1</employeeID>
+  <orderName>Lunch Menu</orderName>
+  <orderStatus>new</orderStatus>
+  <amount>50</amount>
+  <totalAmount>1800</totalAmount>
+</order>

@@ -1,0 +1,1188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="8ff5a612-47ed-4964-ba6f-9e8fd56dcd13" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="1d0f3e7c-1c7f-463c-aa9e-8321244b1fbd" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="AndjelaJankovic040101@" database="restaurant_db" />
+	</db:config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="f52026d2-8e5e-46c6-ba17-d020bb25a85a" >
+		<file:connection workingDir="C:\workspace\restaurant-api\src\main\resources" />
+	</file:config>
+	<flow name="get-customers-flow" doc:id="6cc671f6-b735-4e67-85d1-d5645991b164" >
+		<http:listener doc:name="Listener" doc:id="1f544244-61c5-4e1d-b7c8-32e70685cbcd" config-ref="HTTP_Listener_config" path="/customers">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<choice doc:name="Choice" doc:id="04d8f121-4378-4da9-b346-60c2819c13e2" >
+			<when expression='#[attributes.headers.active != null and !(attributes.headers.active == "true" or attributes.headers.active == "false")]'>
+				<set-variable value="400" doc:name="Set Variable" doc:id="79b103d2-81e4-4200-b020-b467ac5bdf0d" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="53da510a-4f27-4d88-b21e-7d5809f1c05a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Header active mora imati vrednost true ili false."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<db:select doc:name="Select" doc:id="dcbe7372-4943-421d-bbe9-e3f864be6a6d" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT 
+    customer_id AS customerID,
+    first_name AS firstName,
+    last_name AS lastName,
+    username,
+    email,
+    phone,
+    date_of_birth AS dateOfBirth,
+    gender,
+    active,
+    updated_at AS updatedAt
+FROM customers
+WHERE (:active IS NULL OR active = :active)]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    active: if (attributes.headers.active == null)
+                null
+            else if (attributes.headers.active == "true")
+                true
+            else if (attributes.headers.active == "false")
+                false
+            else
+                null
+}]]]></db:input-parameters>
+		</db:select>
+				<ee:transform doc:name="Transform Message" doc:id="46c5c9ae-faeb-44a5-8a8d-685395685e2f">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get-customer-by-id-flow" doc:id="85f59e60-200c-4cfa-8186-7dc69c72e8f6" >
+		<http:listener doc:name="Listener" doc:id="41594ab0-4600-42a8-b5a7-ce923722c634" config-ref="HTTP_Listener_config" path="/customers/{id}">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.'id']" doc:name="Set Variable" doc:id="b781fbcf-b604-4562-846d-b0eb78b62bfe" variableName="customerId"/>
+		<db:select doc:name="Select" doc:id="6f8e31c5-724a-461c-aa5a-3cbf751a4ca0" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT 
+    customer_id AS customerID,
+    first_name AS firstName,
+    last_name AS lastName,
+    username,
+    email,
+    phone,
+    date_of_birth AS dateOfBirth,
+    gender,
+    active,
+    updated_at AS updatedAt
+FROM customers
+WHERE customer_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: attributes.uriParams.'id'
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="9ce7933c-0fa7-49ae-8125-6281e00677c3" >
+			<when expression="#[isEmpty(payload)]">
+				<set-variable value="404" doc:name="Set Variable" doc:id="922bd5bf-1873-4594-a635-ade43a8a258c" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="191686b1-692e-4aca-ad74-356907db8c99" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Customer with ID " ++ ((vars.customerId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<file:write doc:name="Write" doc:id="8b9f9702-d2e3-473f-a5b3-42dca420d265" config-ref="File_Config" path='#["customers/customer_" ++ (payload[0].customerID as String) ++ ".json"]'>
+					<file:content ><![CDATA[#[%dw 2.0
+output application/json
+---
+payload[0]]]]></file:content>
+				</file:write>
+				<ee:transform doc:name="Transform Message" doc:id="7909b41a-543e-4b97-b346-e2a25ac11fc3">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="create-customer-flow" doc:id="e3fa2640-d221-41ae-a8a8-aaa180636639" >
+		<http:listener doc:name="Listener" doc:id="2090f4cc-112e-4240-a000-e3f407171e5b" config-ref="HTTP_Listener_config" path="/customers" allowedMethods="POST">
+			<http:response statusCode="#[vars.httpStatus default 201]" />
+		</http:listener>
+		<db:insert doc:name="Insert" doc:id="aee350b1-eb2e-4864-b485-8a62ce3aa30d" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO customers
+(
+    first_name,
+    last_name,
+    username,
+    email,
+    phone,
+    date_of_birth,
+    gender,
+    active
+)
+VALUES
+(
+    :firstName,
+    :lastName,
+    :username,
+    :email,
+    :phone,
+    :dateOfBirth,
+    :gender,
+    :active
+)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+    firstName: payload.firstName,
+    lastName: payload.lastName,
+    username: payload.username,
+    email: payload.email,
+    phone: payload.phone,
+    dateOfBirth: payload.dateOfBirth,
+    gender: payload.gender,
+    active: payload.active
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="deffb0fd-38ac-4e28-8eac-2114de28e6c0">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Customer created successfully."
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<error-handler >
+			<on-error-continue enableNotifications="true" logException="true" doc:name="On Error Continue" doc:id="13a5b786-5b0e-4bd8-a419-d878ac034bc3" type="DB:QUERY_EXECUTION">
+				<set-variable value="409" doc:name="Set Variable" doc:id="dbe85e1c-f0b6-4a53-9960-e727797f4dbc" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="d3839f8c-6944-44ef-9521-da5f31da0a06">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Database validation failed.",
+    details: error.description
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</on-error-continue>
+		</error-handler>
+	</flow>
+	<flow name="delete-customer-flow" doc:id="addd55fc-481e-4935-a6c9-6b46ec99be08" >
+		<http:listener doc:name="Listener" doc:id="d09265ac-32b7-4ec2-a027-296dce20214f" config-ref="HTTP_Listener_config" path="/customers/{id}" allowedMethods="DELETE">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="d45f8307-500e-4dae-9a20-d736ebf701da" variableName="customerId"/>
+		<db:delete doc:name="Delete" doc:id="66b70145-c638-49a4-82ad-a7331fbb0597" config-ref="Database_Config">
+			<db:sql ><![CDATA[DELETE FROM customers
+WHERE customer_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:delete>
+		<choice doc:name="Choice" doc:id="27f8f920-6596-4d85-8aab-a861e20104c9" >
+			<when expression="#[payload == 0]">
+				<set-variable value="404" doc:name="Set Variable" doc:id="a91b913f-7b0c-47e2-82a4-ada96935133d" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="c76532d9-8b84-4094-9452-4113e0894441" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Customer with ID " ++ ((vars.customerId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="2472c3ef-149c-4540-b1dd-a1a5fa12eb14" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Customer deleted successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="update-customer-flow" doc:id="3acb6d89-14a3-4eff-9b14-739a573d86da">
+		<http:listener doc:name="Listener" doc:id="56f6736a-089f-4287-a1d7-dd2ae9229ee6" config-ref="HTTP_Listener_config" path="/customers/{id}" allowedMethods="PUT">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="82453e90-b808-46c1-985b-82ea86fa6e0f" variableName="customerData"/>
+		<db:update doc:name="Update" doc:id="c205c6e0-672a-4bcd-8c8e-6ab21f280377" config-ref="Database_Config">
+			<db:sql><![CDATA[UPDATE customers
+SET
+    first_name = :firstName,
+    last_name = :lastName,
+    username = :username,
+    email = :email,
+    phone = :phone,
+    date_of_birth = :dateOfBirth,
+    gender = :gender,
+    active = :active,
+    updated_at = NOW()
+WHERE customer_id = :id]]></db:sql>
+			<db:input-parameters><![CDATA[#[{
+    id: attributes.uriParams.id,
+    firstName: vars.customerData.firstName,
+    lastName: vars.customerData.lastName,
+    username: vars.customerData.username,
+    email: vars.customerData.email,
+    phone: vars.customerData.phone,
+    dateOfBirth: vars.customerData.dateOfBirth,
+    gender: vars.customerData.gender,
+    active: vars.customerData.active
+}]]]></db:input-parameters>
+		</db:update>
+		<choice doc:name="Choice" doc:id="fe96d228-5355-4abf-8126-d76b05e1b8eb">
+			<when expression="#[payload.affectedRows == 0]">
+				<db:insert doc:name="Insert" doc:id="d44242f4-d6e4-416c-a239-524f7d2b3055" config-ref="Database_Config">
+					<db:sql><![CDATA[INSERT INTO customers
+(
+    customer_id,
+    first_name,
+    last_name,
+    username,
+    email,
+    phone,
+    date_of_birth,
+    gender,
+    active
+)
+VALUES
+(
+    :id,
+    :firstName,
+    :lastName,
+    :username,
+    :email,
+    :phone,
+    :dateOfBirth,
+    :gender,
+    :active
+)]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+    id: attributes.uriParams.id,
+    firstName: vars.customerData.firstName,
+    lastName: vars.customerData.lastName,
+    username: vars.customerData.username,
+    email: vars.customerData.email,
+    phone: vars.customerData.phone,
+    dateOfBirth: vars.customerData.dateOfBirth,
+    gender: vars.customerData.gender,
+    active: vars.customerData.active
+}]]]></db:input-parameters>
+				</db:insert>
+				<ee:transform doc:name="Transform Message" doc:id="c6a614cb-7c30-4c3a-a5fa-8d871dd2cb99">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Customer did not exist, so new customer was inserted."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise>
+				<ee:transform doc:name="Transform Message" doc:id="b15e94db-1abe-4fb2-9d03-e5e6fad8434b">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Customer updated successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="create-order-flow" doc:id="1a5677d1-4bae-4d3e-8247-8276e3d0a8f2" >
+		<http:listener doc:name="Listener" doc:id="ad4c2aea-0feb-45cf-ab92-8eed0d6362de" config-ref="HTTP_Listener_config" path="/orders" allowedMethods="POST">
+			<http:response statusCode="#[vars.httpStatus default 201]" />
+		</http:listener>
+		<set-variable value='#[%dw 2.0&#10;output application/java&#10;---&#10;payload ++ {&#10;    orderStatus: "new",&#10;    amount: payload.amount * 2&#10;}]' doc:name="Set Variable" doc:id="6cbfff4e-a827-47f9-8a9f-5d1384a1fbb4" variableName="orderData"/>
+		<file:write doc:name="Write" doc:id="5cbc9367-be48-42b4-a26b-a6e5a7a43635" path='#["internalERP/internalERP_" ++ (now() as String {format: "yyyyMMddHHmmssSSS"}) ++ ".xml"]' config-ref="File_Config">
+			<file:content ><![CDATA[#[%dw 2.0
+output application/xml
+---
+{
+    order: {
+        customerID: vars.orderData.customerID,
+        tableID: vars.orderData.tableID,
+        employeeID: vars.orderData.employeeID,
+        orderName: vars.orderData.orderName,
+        orderStatus: vars.orderData.orderStatus,
+        amount: vars.orderData.amount,
+        totalAmount: vars.orderData.totalAmount
+    }
+}]]]></file:content>
+		</file:write>
+		<choice doc:name="Choice" doc:id="93122ebc-0a23-491b-a55b-22ae55783716" >
+			<when expression="#[payload.amount &gt; 100]">
+				<file:write doc:name="Write" doc:id="15bb7778-3206-4cc0-bdf4-a3e8a7153edd" path='#["chineseERP/chineseERP_" ++ (now() as String {format: "yyyyMMddHHmmssSSS"}) ++ ".json"]' config-ref="File_Config">
+					<file:content ><![CDATA[#[%dw 2.0
+output application/json
+---
+vars.orderData]]]></file:content>
+				</file:write>
+				<db:insert doc:name="Insert" doc:id="49d69838-eded-4724-803e-d41f7eb18842" config-ref="Database_Config">
+					<db:sql><![CDATA[INSERT INTO orders
+(
+    customer_id,
+    table_id,
+    employee_id,
+    order_name,
+    order_status,
+    amount,
+    total_amount
+)
+VALUES
+(
+    :customerId,
+    :tableId,
+    :employeeId,
+    :orderName,
+    :orderStatus,
+    :amount,
+    :totalAmount
+)]]></db:sql>
+					<db:input-parameters><![CDATA[#[{
+    customerId: vars.orderData.customerID,
+    tableId: vars.orderData.tableID,
+    employeeId: vars.orderData.employeeID,
+    orderName: vars.orderData.orderName,
+    orderStatus: vars.orderData.orderStatus,
+    amount: vars.orderData.amount,
+    totalAmount: vars.orderData.totalAmount
+}]]]></db:input-parameters>
+				</db:insert>
+				<ee:transform doc:name="Transform Message" doc:id="4af1c0be-77d7-44a6-8978-d42fac8f6dcb">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Large order created successfully. Amount was multiplied by 2."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<db:insert doc:name="Insert" doc:id="cf87901b-5699-4b1d-9954-a0dce439d2a9" config-ref="Database_Config">
+					<db:sql ><![CDATA[INSERT INTO orders
+(
+    customer_id,
+    table_id,
+    employee_id,
+    order_name,
+    order_status,
+    amount,
+    total_amount
+)
+VALUES
+(
+    :customerId,
+    :tableId,
+    :employeeId,
+    :orderName,
+    'new',
+    :amount,
+    :totalAmount
+)]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+    customerId: vars.orderData.customerID,
+    tableId: vars.orderData.tableID,
+    employeeId: vars.orderData.employeeID,
+    orderName: vars.orderData.orderName,
+    orderStatus: vars.orderData.orderStatus,
+    amount: vars.orderData.amount,
+    totalAmount: vars.orderData.totalAmount
+}]]]></db:input-parameters>
+				</db:insert>
+				<ee:transform doc:name="Transform Message" doc:id="1d403a55-7aea-4874-aa09-5493234e4c34" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Order created successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get-orders-flow" doc:id="b61486f9-c897-4762-b335-c096b9663fc9">
+		<http:listener doc:name="Listener" doc:id="5fa890b0-2568-460d-87c1-34ed85725bd4" config-ref="HTTP_Listener_config" path="/orders" allowedMethods="GET" >
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<db:select doc:name="Select" doc:id="fad6cc6e-ff55-4173-95c8-e8c8fd822533" config-ref="Database_Config">
+			<db:sql><![CDATA[SELECT
+    order_id AS orderID,
+    customer_id AS customerID,
+    table_id AS tableID,
+    employee_id AS employeeID,
+    order_name AS orderName,
+    order_status AS orderStatus,
+    amount,
+    total_amount AS totalAmount,
+    order_date AS orderDate,
+    updated_at AS updatedAt
+FROM orders]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="5ffa70d8-66f2-436a-9ec6-d6503952bdb3" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="get-order-by-id-flow" doc:id="56b0765d-ae5f-45a0-afd9-797b0ff4c5d1" >
+		<http:listener doc:name="Listener" doc:id="e2e72f7d-64dc-4d0a-8ac0-bdc771b98481" config-ref="HTTP_Listener_config" path="/orders/{id}" allowedMethods="GET">
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="71c31521-7826-4e07-81a4-ff11f5269089" variableName="orderId"/>
+		<db:select doc:name="Select" doc:id="3628101d-bd3f-4a5f-9f52-f6bb946b502c" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    order_id AS orderID,
+    customer_id AS customerID,
+    table_id AS tableID,
+    employee_id AS employeeID,
+    order_name AS orderName,
+    order_status AS orderStatus,
+    amount,
+    total_amount AS totalAmount,
+    order_date AS orderDate,
+    updated_at AS updatedAt
+FROM orders
+WHERE order_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="8fb3216a-621d-4135-8fec-d93d9bc1ff7e" >
+			<when expression="#[isEmpty(payload)]">
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="4d35e2f7-19c0-47e1-bba1-420457edfd53" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="a89ba73a-0ce0-4b5f-9c8f-47cfe5e9ab0d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Order with ID " ++ ((vars.orderId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="558b3eb0-fc80-4c23-9912-f83abd7c5dba" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="update-order-flow" doc:id="e367eed6-ca9b-46bd-ba06-432110d1a965" >
+		<http:listener doc:name="Listener" doc:id="2e536b95-341b-4663-8789-c5cd29afc44e" config-ref="HTTP_Listener_config" path="/orders/{id}" allowedMethods="PUT"/>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="e305c538-7aba-4a4c-b149-ba3515141585" variableName="orderId"/>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="0c7b6df7-13de-4121-a5df-25973fa9af14" variableName="orderData"/>
+		<db:update doc:name="Update" doc:id="21256a88-91a6-4987-9a29-b2411c6b876c" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE orders
+SET
+    customer_id = :customerId,
+    table_id = :tableId,
+    employee_id = :employeeId,
+    
+    order_name = :orderName,
+    order_status = 'updated',
+    amount = :amount,
+    total_amount = :totalAmount,
+    updated_at = NOW()
+WHERE order_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.orderId,
+    customerId: vars.orderData.customerID,
+    tableId: vars.orderData.tableID,
+    employeeId: vars.orderData.employeeID,
+    orderName: vars.orderData.orderName,
+    amount: vars.orderData.amount,
+    totalAmount: vars.orderData.totalAmount
+}]]]></db:input-parameters>
+		</db:update>
+		<choice doc:name="Choice" doc:id="12c6c70f-9c2f-4683-b1c7-8678af8cee4f" >
+			<when expression="#[payload.affectedRows == 0]">
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="ca63dab6-c2bf-48e5-9f61-5f27f9063db3" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="1a6ba99a-31c8-4777-b1ed-6b3051a36468" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Order with ID " ++ ((vars.orderId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="bcb052a9-3f54-4737-935e-27b0d6239f2d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Order updated successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="delete-order-flow" doc:id="af4c72e3-359c-40e0-ae3b-f8ca44dcf7db" >
+		<http:listener doc:name="Listener" doc:id="55d11759-687f-484a-9786-a9c4939dc560" config-ref="HTTP_Listener_config" path="/orders/{id}" allowedMethods="DELETE">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="9a1db792-1a80-40fe-9d19-3262ae11e2c4" variableName="orderId"/>
+		<db:select doc:name="Select" doc:id="a5d9706e-2413-4458-a60f-7fe590ead163" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT *
+FROM orders
+WHERE order_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: attributes.uriParams.id
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="5443e787-32c5-40a0-8ef2-31fed76a917f" >
+			<when expression="#[isEmpty(payload)]">
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="c14613c3-3e7f-4e4c-8a07-f01cc36f8550" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="7949e5e7-e605-4f51-a30d-bf2889b731bd" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Order with ID " ++ ((vars.orderId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<db:delete doc:name="Delete" doc:id="21d6ecd5-cd1c-4594-8d49-02d452e7e726" config-ref="Database_Config">
+					<db:sql ><![CDATA[DELETE FROM orders
+WHERE order_id = :id]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+    id: vars.orderId
+}]]]></db:input-parameters>
+				</db:delete>
+				<ee:transform doc:name="Transform Message" doc:id="89c0f6fb-63a9-4209-ba19-b2c0539b1a80" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Order deleted successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get-employees-flow" doc:id="99378c3f-d0e3-48a2-a894-99424ac74971" >
+		<http:listener doc:name="Listener" doc:id="bfff55f3-d486-4d9b-9fb3-238830100c69" config-ref="HTTP_Listener_config" path="/employees" allowedMethods="GET"/>
+		<db:select doc:name="Select" doc:id="b5c6f17a-9d36-43a4-a26a-e1ebfae12d3d" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    employee_id AS employeeID,
+    first_name AS firstName,
+    last_name AS lastName,
+    position,
+    salary,
+    active
+FROM employees]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="fd72143e-478c-42a6-98e0-69c0c03566a4" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="get-employee-by-id-flow" doc:id="a22e0acb-99ec-4c61-83ec-5cc4828a16bc" >
+		<http:listener doc:name="Listener" doc:id="b31d4001-ff80-40eb-b3a2-3f3d9bb0f3fb" config-ref="HTTP_Listener_config" path="/employees/{id}" allowedMethods="GET">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="c477aac6-c0cd-4d12-aa5f-7f68f6f393de" variableName="employeeId"/>
+		<db:select doc:name="Select" doc:id="331e7700-726b-4452-8e2a-f9c8165f7a68" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    employee_id AS employeeID,
+    first_name AS firstName,
+    last_name AS lastName,
+    position,
+    salary,
+    active
+FROM employees
+WHERE employee_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.employeeId
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="6d832274-87d9-479a-955d-5dc249272621" >
+			<when expression="#[isEmpty(payload)]">
+				<set-variable value="404" doc:name="Set Variable" doc:id="c877a41b-e03a-42cf-a9e8-46de77f5bcf0" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="146fe198-77e1-482c-b0bc-75976859fed4" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Employee with ID " ++ ((vars.employeeId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="581a3965-5fd4-4490-ba44-9386af1b6c94" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="create-employee-flow" doc:id="ad596311-c627-4836-a911-b17f0507c4ab" >
+		<http:listener doc:name="Listener" doc:id="eb3ffae5-39da-48d9-ba6b-2ca68cd6b7b3" config-ref="HTTP_Listener_config" path="/employees" allowedMethods="POST">
+			<http:response statusCode="#[vars.httpStatus default 201]" />
+		</http:listener>
+		<db:insert doc:name="Insert" doc:id="5d652ebf-6436-460e-8e58-0f1f2d79f0d5" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO employees
+(
+    first_name,
+    last_name,
+    position,
+    salary,
+    active
+)
+VALUES
+(
+    :firstName,
+    :lastName,
+    :position,
+    :salary,
+    :active
+)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    firstName: payload.firstName,
+    lastName: payload.lastName,
+    position: payload.position,
+    salary: payload.salary,
+    active: payload.active
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="92ac7aae-094d-431c-966b-1a0de338a507" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Employee created successfully."
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="update-employee-flow" doc:id="2ae578a8-acd7-4626-bafd-ed75724d7ccd" >
+		<http:listener doc:name="Listener" doc:id="16bfc803-7390-49fa-b894-728de9db96c8" config-ref="HTTP_Listener_config" path="/employees/{id}" allowedMethods="PUT"/>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="c85e353b-0686-44b6-b219-f0cc6c96cfe7" variableName="employeeId"/>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="aac787f4-5cd4-4098-8ea4-1629cdb2ccae" variableName="employeeData"/>
+		<db:update doc:name="Update" doc:id="71c55e7f-6b42-44a6-b543-3c7100ac0bbc" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE employees
+SET
+    first_name = :firstName,
+    last_name = :lastName,
+    position = :position,
+    salary = :salary,
+    active = :active
+WHERE employee_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.employeeId,
+    firstName: vars.employeeData.firstName,
+    lastName: vars.employeeData.lastName,
+    position: vars.employeeData.position,
+    salary: vars.employeeData.salary,
+    active: vars.employeeData.active
+}]]]></db:input-parameters>
+		</db:update>
+		<choice doc:name="Choice" doc:id="ffb92c0d-fe82-47a7-9897-c0fb2a146c16" >
+			<when expression="#[payload.affectedRows == 0]">
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="3c0807b6-a241-488a-b33c-47f5e5864390" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="5c05ad85-17d0-45a1-ae6c-ab0fd900f41a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Employee with ID " ++ ((vars.employeeId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="393f5f76-7d72-4c2b-8e00-05b03c009cec" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Employee updated successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="delete-employee-flow" doc:id="98ec15df-2ac2-4073-b279-0411ce99fb22" >
+		<http:listener doc:name="Listener" doc:id="bee3a2fd-3065-4d58-9d63-7106d5824d83" config-ref="HTTP_Listener_config" path="/employees/{id}" allowedMethods="DELETE"/>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="4159d58b-ee54-4c1b-9cd5-5ba67de0e25a" variableName="employeeId"/>
+		<db:delete doc:name="Delete" doc:id="6873fc9c-9ad7-4efa-aac6-779cecade504" config-ref="Database_Config">
+			<db:sql ><![CDATA[DELETE FROM employees
+WHERE employee_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.employeeId
+}]]]></db:input-parameters>
+		</db:delete>
+		<choice doc:name="Choice" doc:id="c028ed8a-2e05-4d03-9e07-b2e8378c5f6e" >
+			<when expression="#[payload == 0]">
+				<set-variable value="404" doc:name="Set Variable" doc:id="b930ea46-e974-46ee-9be0-9bf3df3def50" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="f2142e39-30e5-4bec-8148-4f8cf75c7e36" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Employee with ID " ++ ((vars.employeeId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="218d8cf8-dd01-49d5-b125-660c16811dae" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Employee deleted successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get-restaurant-tables-flow" doc:id="ec42bf21-9c5a-4c1b-b9f0-7052012b1540" >
+		<http:listener doc:name="Listener" doc:id="613bc47c-131f-41cc-82f0-45d1ee970125" config-ref="HTTP_Listener_config" path="/restaurant-tables" allowedMethods="GET"/>
+		<db:select doc:name="Select" doc:id="646afb83-9e59-4b0e-9506-200281a2ecff" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    table_id AS tableID,
+    table_number AS tableNumber,
+    capacity,
+    status
+FROM restaurant_tables]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="e9a28737-dffc-4f59-8de0-5e36d120ec2f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="get-restaurant-table-by-id-flow" doc:id="161407bd-0aca-498a-bf4b-61d86a614b7a" >
+		<http:listener doc:name="Listener" doc:id="a9b69301-d87e-4ae4-9f7f-4d3bae0d1682" config-ref="HTTP_Listener_config" path="/restaurant-tables/{id}" allowedMethods="GET"/>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="a756887c-6158-41e3-af3d-c04b8725ddde" variableName="tableId"/>
+		<db:select doc:name="Select" doc:id="0912091a-ef0e-49ac-ade1-54709913278b" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    table_id AS tableID,
+    table_number AS tableNumber,
+    capacity,
+    status
+FROM restaurant_tables
+WHERE table_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.tableId
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="5ac3c946-b90d-46b6-9ac3-671e2cc2ba99" >
+			<when expression="#[isEmpty(payload)]">
+				<ee:transform doc:name="Transform Message" doc:id="c0368a14-c269-4201-9f78-a2711d5a371a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Restaurant table with ID " ++ ((vars.tableId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="c42e0681-f93d-4a05-8d0f-65f8f4988f17" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="create-restaurant-table-flow" doc:id="f20bb875-16fb-4530-8f93-7c665cca83fc" >
+		<http:listener doc:name="Listener" doc:id="c2076a32-6bad-43ec-a09f-2cc5e5c300bb" config-ref="HTTP_Listener_config" path="/restaurant-tables" allowedMethods="POST">
+			<http:response statusCode="#[vars.httpStatus default 201]" />
+		</http:listener>
+		<db:insert doc:name="Insert" doc:id="7ad698f9-6ccf-4239-9b8d-9ff00a3aa6b8" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO restaurant_tables
+(
+    table_number,
+    capacity,
+    status
+)
+VALUES
+(
+    :tableNumber,
+    :capacity,
+    :status
+)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    tableNumber: payload.tableNumber,
+    capacity: payload.capacity,
+    status: payload.status
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="a65b973b-d805-4043-b32c-b80ee77ce99c" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Restaurant table created successfully."
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="update-restaurant-table-flow" doc:id="1965da8b-26a8-496d-9773-b01c6ccd615b" >
+		<http:listener doc:name="Listener" doc:id="3b4eef26-5404-4f7c-aaef-d8bf45187bdf" config-ref="HTTP_Listener_config" path="/restaurant-tables/{id}" allowedMethods="PUT"/>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="074cb299-bb85-4a42-81ba-205f1642d7a4" variableName="tableId"/>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="b5bb5ca4-81da-4856-bd7b-6430732b48c7" variableName="tableData"/>
+		<db:update doc:name="Update" doc:id="64f1f714-4327-4707-b0c9-056d8a6ac379" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE restaurant_tables
+SET
+    table_number = :tableNumber,
+    capacity = :capacity,
+    status = :status
+WHERE table_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.tableId,
+    tableNumber: vars.tableData.tableNumber,
+    capacity: vars.tableData.capacity,
+    status: vars.tableData.status
+}]]]></db:input-parameters>
+		</db:update>
+		<choice doc:name="Choice" doc:id="2245a996-71bd-4ae7-af58-a9309bb2fe85" >
+			<when expression="#[payload.affectedRows == 0]">
+				<set-variable value="404" doc:name="Set Variable" doc:id="2dc04525-4ac8-4fdd-b6fc-c44a6b659d28" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="ad3ec280-64ee-46bd-9bbe-dae5fe866d68" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Restaurant table with ID " ++ ((vars.tableId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="2a1ad004-8a6f-4c5f-8377-702e6c705e46" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Restaurant table updated successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="delete-restaurant-table-flow" doc:id="4ce4e295-db3d-4041-be62-4817bb2bd386" >
+		<http:listener doc:name="Listener" doc:id="4cf0c28c-d76c-4271-8789-ebc8eb31d722" config-ref="HTTP_Listener_config" path="/restaurant-tables/{id}"/>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="1dcaa917-1a78-4da2-94b2-26263515eec2" variableName=" tableId"/>
+		<db:delete doc:name="Delete" doc:id="436bcac4-2ad6-4992-b9a8-7e6fd6837b14" config-ref="Database_Config">
+			<db:sql ><![CDATA[DELETE FROM restaurant_tables
+WHERE table_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.tableId
+}]]]></db:input-parameters>
+		</db:delete>
+		<choice doc:name="Choice" doc:id="cbe8dd97-f924-47ce-bf62-fdb37c3cbfa9" >
+			<when expression="#[payload.affectedRows == 0]">
+				<set-variable value="404" doc:name="Set Variable" doc:id="f6f2dbbf-dfe8-4910-92bc-fddc0c8d0f66" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="139ce3f9-ea1c-4330-9ecd-e9fac3b88554" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Restaurant table with ID " ++ ((vars.tableId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="96ec6e3b-eda0-4981-ac52-2a1567cfe58a" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Restaurant table deleted successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="get-payments-flow" doc:id="27b0db8e-6431-4b2a-9079-9af992078f65" >
+		<http:listener doc:name="Listener" doc:id="9663c0bb-7db8-4490-b745-134c9095d1a5" config-ref="HTTP_Listener_config" path="/payments" allowedMethods="GET"/>
+		<db:select doc:name="Select" doc:id="0e39eb29-d297-44cb-b068-3cac145b064f" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    payment_id AS paymentID,
+    order_id AS orderID,
+    payment_method AS paymentMethod,
+    amount,
+    payment_date AS paymentDate
+FROM payments]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Transform Message" doc:id="722ea52c-9832-49ec-a23d-8cb364ed842b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="get-payment-by-id-flow" doc:id="45026886-4253-4e4b-b10b-18a579c93e08" >
+		<http:listener doc:name="Listener" doc:id="69370cda-0922-4167-95c8-295cea9d10f5" config-ref="HTTP_Listener_config" path="/payments/{id}" allowedMethods="GET">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="3ba1ea91-b3af-4290-862e-fa9888e20e9a" variableName="paymentId"/>
+		<db:select doc:name="Select" doc:id="9290edae-1a2b-4212-a9fc-15929fc54e36" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT
+    payment_id AS paymentID,
+    order_id AS orderID,
+    payment_method AS paymentMethod,
+    amount,
+    payment_date AS paymentDate
+FROM payments
+WHERE payment_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.paymentId
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="d4b66975-d0a3-4dea-938c-074020b37e2a" >
+			<when expression="#[isEmpty(payload)]">
+				<set-variable value="#[400]" doc:name="Set Variable" doc:id="2125862d-56b5-46e3-aed5-3cf360ce324e" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="dd6cb7cc-74ba-4272-888b-800c78c0d509" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  message: "Payment with ID " ++ ((vars.paymentId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="2bd5383b-bd82-4964-be3c-1360898288ff" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="create-payment-flow" doc:id="ade3eee7-63dd-4242-99ae-dc4753949735" >
+		<http:listener doc:name="Listener" doc:id="720c2b8b-2ad8-4ba1-b3de-e4108d81776b" config-ref="HTTP_Listener_config" path="/payments" allowedMethods="POST">
+			<http:response statusCode="#[vars.httpStatus default 201]" />
+		</http:listener>
+		<db:insert doc:name="Insert" doc:id="6809383f-9abf-49cb-a5a4-b9f68fccdfb1" config-ref="Database_Config">
+			<db:sql ><![CDATA[INSERT INTO payments
+(
+    order_id,
+    payment_method,
+    amount
+)
+VALUES
+(
+    :orderId,
+    :paymentMethod,
+    :amount
+)]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    orderId: payload.orderID,
+    paymentMethod: payload.paymentMethod,
+    amount: payload.amount
+}]]]></db:input-parameters>
+		</db:insert>
+		<ee:transform doc:name="Transform Message" doc:id="e55c4ab0-8da7-4eb5-bc11-a39ccaaf5f99" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Payment created successfully."
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="update-payment-flow" doc:id="d2cc1656-731e-4594-8ecc-9a5a5af510a6" >
+		<http:listener doc:name="Listener" doc:id="d578d9cd-e3e9-4857-8b32-0f14fb7dce30" config-ref="HTTP_Listener_config" path="/payments/{id}" allowedMethods="PUT"/>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="a4b08a74-7b2b-4a92-9007-6327f909c038" variableName="paymentId"/>
+		<set-variable value="#[payload]" doc:name="Set Variable" doc:id="0933a11c-4997-49d6-b79c-c7dccf36f03d" variableName="paymentData"/>
+		<db:update doc:name="Update" doc:id="062c8eb2-7267-45fa-a038-23b89ee50ab3" config-ref="Database_Config">
+			<db:sql ><![CDATA[UPDATE payments
+SET
+    order_id = :orderId,
+    payment_method = :paymentMethod,
+    amount = :amount
+WHERE payment_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.paymentId,
+    orderId: vars.paymentData.orderID,
+    paymentMethod: vars.paymentData.paymentMethod,
+    amount: vars.paymentData.amount
+}]]]></db:input-parameters>
+		</db:update>
+		<choice doc:name="Choice" doc:id="9aec9d67-f198-4096-b216-3fe75ee7e5a3" >
+			<when expression="#[payload.affectedRows == 0]">
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="e30d422c-5bdf-4944-baba-66509c9d248c" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="d1578286-bc30-45c5-b980-d4a6c589127e" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Payment with ID " ++ ((vars.paymentId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="da253c82-fc14-4e04-a5e5-d22c35503964" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Payment updated successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="delete-payment-flow" doc:id="61fb27dd-137f-47e1-b84c-87f4e8575372" >
+		<http:listener doc:name="Listener" doc:id="41c5fe76-807f-455c-bf25-813e94112f8a" config-ref="HTTP_Listener_config" path="/payments/{id}" allowedMethods="DELETE">
+			<http:response statusCode="#[vars.httpStatus default 200]" />
+		</http:listener>
+		<set-variable value="#[attributes.uriParams.id]" doc:name="Set Variable" doc:id="80c81e14-bd37-4847-b960-c508e8110968" variableName="paymentId"/>
+		<db:select doc:name="Select" doc:id="dd21a54f-985f-402e-ad70-d8ab45c83c02" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT *
+FROM payments
+WHERE payment_id = :id]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+    id: vars.paymentId
+}]]]></db:input-parameters>
+		</db:select>
+		<choice doc:name="Choice" doc:id="5ef3fe9d-13e4-486b-bed8-a68775e7e14d" >
+			<when expression="#[isEmpty(payload)]">
+				<set-variable value="#[404]" doc:name="Set Variable" doc:id="587879bf-198d-4a73-bc63-efd53c388462" variableName="httpStatus"/>
+				<ee:transform doc:name="Transform Message" doc:id="280feabc-601f-400a-a7e9-14292df836d7" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Payment with ID " ++ ((vars.paymentId default "") as String) ++ " does not exist."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</when>
+			<otherwise >
+				<db:delete doc:name="Delete" doc:id="2b484fba-35f5-4030-82c7-e67215284988" config-ref="Database_Config">
+					<db:sql ><![CDATA[DELETE FROM payments
+WHERE payment_id = :id]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+    id: vars.paymentId
+}]]]></db:input-parameters>
+				</db:delete>
+				<ee:transform doc:name="Transform Message" doc:id="c93ff7e6-6f2b-4f18-88ce-c5b4c01f36ec" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    message: "Payment deleted successfully."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+	</flow>
+</mule>

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<order>
+  <customerID>2</customerID>
+  <tableID>3</tableID>
+  <employeeID>1</employeeID>
+  <orderName>Family Celebration Package</orderName>
+  <orderStatus>new</orderStatus>
+  <amount>360</amount>
+  <totalAmount>12500</totalAmount>
+</order>

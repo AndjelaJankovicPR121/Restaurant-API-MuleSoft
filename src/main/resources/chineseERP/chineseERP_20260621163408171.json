@@ -1,0 +1,9 @@
+{
+  "customerID": 1,
+  "tableID": 4,
+  "employeeID": 1,
+  "orderName": "Corporate Event Catering",
+  "amount": 500,
+  "totalAmount": 22000,
+  "orderStatus": "new"
+}

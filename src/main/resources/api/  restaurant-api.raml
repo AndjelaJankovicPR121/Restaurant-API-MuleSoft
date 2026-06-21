@@ -1,0 +1,751 @@
+#%RAML 1.0
+title: Restaurant API
+version: v1
+baseUri: http://localhost:8081
+mediaType: application/json
+
+types:
+
+  Message:
+    type: object
+    properties:
+      message: string
+      details?: string
+
+  Customer:
+    type: object
+    properties:
+      customerID?: integer
+      firstName: string
+      lastName: string
+      username: string
+      email: string
+      phone?: string
+      dateOfBirth?: date-only
+      gender:
+        type: string
+        enum: [male, female]
+      active: boolean
+      updatedAt?: datetime
+
+  Order:
+    type: object
+    properties:
+      orderID?: integer
+      customerID: integer
+      tableID: integer
+      employeeID: integer
+      orderName: string
+      orderStatus?:
+        type: string
+        enum: [new, updated]
+      amount: integer
+      totalAmount: number
+      orderDate?: datetime
+      updatedAt?: datetime
+
+  Employee:
+    type: object
+    properties:
+      employeeID?: integer
+      firstName: string
+      lastName: string
+      position: string
+      salary: number
+      active: boolean
+
+  RestaurantTable:
+    type: object
+    properties:
+      tableID?: integer
+      tableNumber: integer
+      capacity: integer
+      status:
+        type: string
+        enum: [available, reserved]
+
+  Payment:
+    type: object
+    properties:
+      paymentID?: integer
+      orderID: integer
+      paymentMethod:
+        type: string
+        enum: [card, cash]
+      amount: number
+      paymentDate?: datetime
+
+/customers:
+  get:
+    description: Returns all customers. Optional filtering by active header.
+    headers:
+      active:
+        type: string
+        description: Optional customer status filter. Allowed values are true and false.
+        required: false
+        enum: ["true", "false"]
+    responses:
+      200:
+        body:
+          application/json:
+            type: Customer[]
+            example:
+              [
+                {
+                  "customerID": 1,
+                  "firstName": "Marko",
+                  "lastName": "Jankovic",
+                  "username": "mjankovic",
+                  "email": "marko@gmail.com",
+                  "phone": "064123456",
+                  "dateOfBirth": "2000-01-01",
+                  "gender": "male",
+                  "active": true,
+                  "updatedAt": null
+                }
+              ]
+      400:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Header active must have value true or false."
+              }
+
+  post:
+    description: Creates a new customer.
+    body:
+      application/json:
+        type: Customer
+        example:
+          {
+            "firstName": "Marko",
+            "lastName": "Jankovic",
+            "username": "mjankovic",
+            "email": "marko@gmail.com",
+            "phone": "064123456",
+            "dateOfBirth": "2000-01-01",
+            "gender": "male",
+            "active": true
+          }
+    responses:
+      201:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Customer created successfully."
+              }
+      409:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Database validation failed.",
+                "details": "Duplicate entry for unique customer field."
+              }
+
+/customers/{id}:
+  uriParameters:
+    id:
+      type: integer
+      required: true
+
+  get:
+    description: Returns customer by ID and writes customer data into a JSON file inside the project workspace.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Customer
+            example:
+              {
+                "customerID": 1,
+                "firstName": "Marko",
+                "lastName": "Jankovic",
+                "username": "mjankovic",
+                "email": "marko@gmail.com",
+                "phone": "064123456",
+                "dateOfBirth": "2000-01-01",
+                "gender": "male",
+                "active": true,
+                "updatedAt": null
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Customer with ID 999 does not exist."
+              }
+
+  put:
+    description: Updates an existing customer. If the customer does not exist, a new customer is inserted.
+    body:
+      application/json:
+        type: Customer
+        example:
+          {
+            "firstName": "MarkoUpdated",
+            "lastName": "Jankovic",
+            "username": "mjankovic",
+            "email": "marko@gmail.com",
+            "phone": "064123456",
+            "dateOfBirth": "2000-01-01",
+            "gender": "male",
+            "active": true
+          }
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Customer updated successfully."
+              }
+      201:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Customer did not exist, so new customer was inserted."
+              }
+
+  delete:
+    description: Deletes customer by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Customer deleted successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Customer with ID 999 does not exist."
+              }
+
+/orders:
+  get:
+    description: Returns all orders.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Order[]
+            example:
+              [
+                {
+                  "orderID": 1,
+                  "customerID": 1,
+                  "tableID": 1,
+                  "employeeID": 1,
+                  "orderName": "Large order",
+                  "orderStatus": "new",
+                  "amount": 300,
+                  "totalAmount": 4500,
+                  "orderDate": "2026-06-21T10:00:00",
+                  "updatedAt": null
+                }
+              ]
+
+  post:
+    description: |
+      Creates a new order.
+
+      Every created order is written to an internalERP XML file inside src/main/resources/internalERP.
+
+      Large orders are additionally written to a chineseERP JSON file inside src/main/resources/chineseERP.
+
+      A large order is an order where orderStatus is new and amount is greater than 100.
+      For large orders, amount is multiplied by 2 before writing data into files and database.
+
+      When an order is created, orderStatus is automatically set to new.
+    body:
+      application/json:
+        type: Order
+        example:
+          {
+            "customerID": 1,
+            "tableID": 1,
+            "employeeID": 1,
+            "orderName": "Large order",
+            "amount": 150,
+            "totalAmount": 4500
+          }
+    responses:
+      201:
+        body:
+          application/json:
+            type: Message
+            examples:
+              normalOrder:
+                value:
+                  {
+                    "message": "Order created successfully."
+                  }
+              largeOrder:
+                value:
+                  {
+                    "message": "Large order created successfully. Amount was multiplied by 2."
+                  }
+
+/orders/{id}:
+  uriParameters:
+    id:
+      type: integer
+      required: true
+
+  get:
+    description: Returns order by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Order
+            example:
+              {
+                "orderID": 1,
+                "customerID": 1,
+                "tableID": 1,
+                "employeeID": 1,
+                "orderName": "Large order",
+                "orderStatus": "new",
+                "amount": 300,
+                "totalAmount": 4500,
+                "orderDate": "2026-06-21T10:00:00",
+                "updatedAt": null
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Order with ID 999 does not exist."
+              }
+
+  put:
+    description: Updates order by ID and automatically sets orderStatus to updated.
+    body:
+      application/json:
+        type: Order
+        example:
+          {
+            "customerID": 1,
+            "tableID": 1,
+            "employeeID": 1,
+            "orderName": "Updated dinner order",
+            "amount": 10,
+            "totalAmount": 8000
+          }
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Order updated successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Order with ID 999 does not exist."
+              }
+
+  delete:
+    description: Deletes order by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Order deleted successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Order with ID 999 does not exist."
+              }
+
+/employees:
+  get:
+    description: Returns all employees.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Employee[]
+            example:
+              [
+                {
+                  "employeeID": 1,
+                  "firstName": "Jovan",
+                  "lastName": "Jovanovic",
+                  "position": "Waiter",
+                  "salary": 70000,
+                  "active": true
+                }
+              ]
+
+  post:
+    description: Creates a new employee.
+    body:
+      application/json:
+        type: Employee
+        example:
+          {
+            "firstName": "Test",
+            "lastName": "Employee",
+            "position": "Waiter",
+            "salary": 60000,
+            "active": true
+          }
+    responses:
+      201:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Employee created successfully."
+              }
+
+/employees/{id}:
+  uriParameters:
+    id:
+      type: integer
+      required: true
+
+  get:
+    description: Returns employee by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Employee
+            example:
+              {
+                "employeeID": 1,
+                "firstName": "Jovan",
+                "lastName": "Jovanovic",
+                "position": "Waiter",
+                "salary": 70000,
+                "active": true
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Employee with ID 999 does not exist."
+              }
+
+  put:
+    description: Updates employee by ID.
+    body:
+      application/json:
+        type: Employee
+        example:
+          {
+            "firstName": "Jovan Updated",
+            "lastName": "Jovanovic",
+            "position": "Manager",
+            "salary": 85000,
+            "active": true
+          }
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Employee updated successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Employee with ID 999 does not exist."
+              }
+
+  delete:
+    description: Deletes employee by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Employee deleted successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Employee with ID 999 does not exist."
+              }
+
+/restaurant-tables:
+  get:
+    description: Returns all restaurant tables.
+    responses:
+      200:
+        body:
+          application/json:
+            type: RestaurantTable[]
+            example:
+              [
+                {
+                  "tableID": 1,
+                  "tableNumber": 1,
+                  "capacity": 2,
+                  "status": "available"
+                }
+              ]
+
+  post:
+    description: Creates a new restaurant table.
+    body:
+      application/json:
+        type: RestaurantTable
+        example:
+          {
+            "tableNumber": 10,
+            "capacity": 4,
+            "status": "available"
+          }
+    responses:
+      201:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Restaurant table created successfully."
+              }
+
+/restaurant-tables/{id}:
+  uriParameters:
+    id:
+      type: integer
+      required: true
+
+  get:
+    description: Returns restaurant table by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: RestaurantTable
+            example:
+              {
+                "tableID": 1,
+                "tableNumber": 1,
+                "capacity": 2,
+                "status": "available"
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Restaurant table with ID 999 does not exist."
+              }
+
+  put:
+    description: Updates restaurant table by ID.
+    body:
+      application/json:
+        type: RestaurantTable
+        example:
+          {
+            "tableNumber": 1,
+            "capacity": 5,
+            "status": "reserved"
+          }
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Restaurant table updated successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Restaurant table with ID 999 does not exist."
+              }
+
+  delete:
+    description: Deletes restaurant table by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Restaurant table deleted successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Restaurant table with ID 999 does not exist."
+              }
+
+/payments:
+  get:
+    description: Returns all payments.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Payment[]
+            example:
+              [
+                {
+                  "paymentID": 1,
+                  "orderID": 1,
+                  "paymentMethod": "card",
+                  "amount": 2400,
+                  "paymentDate": "2026-06-09T23:07:13"
+                }
+              ]
+
+  post:
+    description: Creates a new payment.
+    body:
+      application/json:
+        type: Payment
+        example:
+          {
+            "orderID": 2,
+            "paymentMethod": "cash",
+            "amount": 7600
+          }
+    responses:
+      201:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Payment created successfully."
+              }
+
+/payments/{id}:
+  uriParameters:
+    id:
+      type: integer
+      required: true
+
+  get:
+    description: Returns payment by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Payment
+            example:
+              {
+                "paymentID": 1,
+                "orderID": 1,
+                "paymentMethod": "card",
+                "amount": 2400,
+                "paymentDate": "2026-06-09T23:07:13"
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Payment with ID 999 does not exist."
+              }
+
+  put:
+    description: Updates payment by ID.
+    body:
+      application/json:
+        type: Payment
+        example:
+          {
+            "orderID": 1,
+            "paymentMethod": "card",
+            "amount": 5000
+          }
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Payment updated successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Payment with ID 999 does not exist."
+              }
+
+  delete:
+    description: Deletes payment by ID.
+    responses:
+      200:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Payment deleted successfully."
+              }
+      404:
+        body:
+          application/json:
+            type: Message
+            example:
+              {
+                "message": "Payment with ID 999 does not exist."
+              }

@@ -1,0 +1,10 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<order>
+  <customerID>1</customerID>
+  <tableID>1</tableID>
+  <employeeID>1</employeeID>
+  <orderName>Multiplier Test</orderName>
+  <orderStatus>new</orderStatus>
+  <amount>300</amount>
+  <totalAmount>1000</totalAmount>
+</order>

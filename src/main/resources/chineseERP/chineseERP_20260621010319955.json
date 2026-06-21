@@ -1,0 +1,9 @@
+{
+  "customerID": 1,
+  "tableID": 1,
+  "employeeID": 1,
+  "orderName": "Multiplier Test",
+  "orderStatus": "new",
+  "amount": 300,
+  "totalAmount": 1000
+}

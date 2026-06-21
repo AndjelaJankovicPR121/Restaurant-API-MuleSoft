@@ -1,0 +1,12 @@
+{
+  "customerID": 2,
+  "firstName": "Ana",
+  "lastName": "Anic",
+  "username": "aanic",
+  "email": "ana@example.com",
+  "phone": "060333444",
+  "dateOfBirth": "2000-09-20",
+  "gender": "female",
+  "active": true,
+  "updatedAt": null
+}
